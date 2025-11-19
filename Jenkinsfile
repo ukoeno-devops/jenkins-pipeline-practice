@@ -1,18 +1,48 @@
 pipeline {
     agent any
+
+    environment {
+        AWS_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '157187738117'
+        ECR_REPO = 'myapp-repo'
+        IMAGE_TAG = "latest"
+        ECR_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
+    }
+
     stages {
-        stage('Checkout Code') {
+
+        stage('Build Docker Image') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/ukoeno-devops/jenkins-pipeline-practice.git',
-                    credentialsId: 'github-token'
+                sh '''
+                    echo "Building Docker image..."
+                    docker build -t ${ECR_REPO}:${IMAGE_TAG} .
+                '''
             }
         }
-        stage('Test Connection') {
+
+        stage('Login to ECR') {
             steps {
-                echo "✅ Jenkins successfully connected to GitHub and cloned the repository."
+                sh '''
+                    aws ecr get-login-password --region ${AWS_REGION} \
+                        | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                '''
+            }
+        }
+
+        stage('Tag Image') {
+            steps {
+                sh '''
+                    docker tag ${ECR_REPO}:${IMAGE_TAG} ${ECR_URI}:${IMAGE_TAG}
+                '''
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                sh '''
+                    docker push ${ECR_URI}:${IMAGE_TAG}
+                '''
             }
         }
     }
 }
-
